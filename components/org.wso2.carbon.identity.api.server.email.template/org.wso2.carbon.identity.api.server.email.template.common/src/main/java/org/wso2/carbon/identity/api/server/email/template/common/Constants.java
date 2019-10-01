@@ -31,7 +31,10 @@ public class Constants {
 
         ERROR_CODE_ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES("50002",
                 "Unable to retrieve email template types.",
-                "Server encountered an error while retrieving email template types.");
+                "Server encountered an error while retrieving email template types."),
+        ERROR_CODE_ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPE("50003",
+                "Unable to retrieve email template type matching the given .",
+                "Server encountered an error while retrieving email template type.");
 
         private final String code;
         private final String message;

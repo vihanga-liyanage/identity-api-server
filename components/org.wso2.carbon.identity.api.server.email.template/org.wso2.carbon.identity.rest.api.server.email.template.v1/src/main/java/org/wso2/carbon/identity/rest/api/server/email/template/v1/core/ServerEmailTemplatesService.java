@@ -23,16 +23,16 @@ import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.email.mgt.exceptions.I18nEmailMgtException;
 import org.wso2.carbon.email.mgt.model.EmailTemplate;
 import org.wso2.carbon.identity.api.server.common.ContextLoader;
+import org.wso2.carbon.identity.api.server.common.Util;
 import org.wso2.carbon.identity.api.server.common.error.APIError;
 import org.wso2.carbon.identity.api.server.common.error.ErrorResponse;
 import org.wso2.carbon.identity.api.server.email.template.common.Constants;
 import org.wso2.carbon.identity.api.server.email.template.common.EmailTemplatesServiceHolder;
+import org.wso2.carbon.identity.rest.api.server.email.template.v1.dto.CompleteEmailTemplateTypeDTO;
+import org.wso2.carbon.identity.rest.api.server.email.template.v1.dto.CompleteEmailTemplateTypeResponseDTO;
 import org.wso2.carbon.identity.rest.api.server.email.template.v1.dto.LocaleDTO;
 import org.wso2.carbon.identity.rest.api.server.email.template.v1.dto.SimpleEmailTemplateDTO;
 import org.wso2.carbon.identity.rest.api.server.email.template.v1.dto.SimpleEmailTemplateTypeDTO;
-
-import static org.wso2.carbon.identity.api.server.common.Util.base64URLEncode;
-import static org.wso2.carbon.identity.api.server.email.template.common.Constants.EMAIL_TEMPLATES_API_BASE_PATH;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,6 +40,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import javax.ws.rs.core.Response;
+
+import static org.wso2.carbon.identity.api.server.common.Util.base64URLEncode;
+import static org.wso2.carbon.identity.api.server.email.template.common.Constants.EMAIL_TEMPLATES_API_BASE_PATH;
 
 /**
  * Call internal osgi services to perform email templates related operations.
@@ -70,6 +73,38 @@ public class ServerEmailTemplatesService {
             throw handleI18nEmailMgtException(e,
                     Constants.ErrorMessage.ERROR_CODE_ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES);
         }
+    }
+
+    public CompleteEmailTemplateTypeResponseDTO getEmailTemplateType(String emailTemplateTypeId, Integer limit,
+                                                             Integer offset, String sort, String sortBy) {
+
+        try {
+            List<EmailTemplate> emailTemplates = EmailTemplatesServiceHolder.getEmailTemplateManager().
+                    getAllEmailTemplates(ContextLoader.getTenantDomainFromContext());
+            return getMatchingEmailTemplateType(emailTemplates, emailTemplateTypeId);
+        } catch (I18nEmailMgtException e) {
+            throw handleI18nEmailMgtException(e,
+                    Constants.ErrorMessage.ERROR_CODE_ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES);
+        }
+    }
+
+    private CompleteEmailTemplateTypeResponseDTO getMatchingEmailTemplateType(List<EmailTemplate> emailTemplates,
+                                                                      String emailTemplateTypeId) {
+
+        CompleteEmailTemplateTypeResponseDTO emailTemplateType = new CompleteEmailTemplateTypeResponseDTO();
+        boolean templateTypeFoundForTheFirstTime = true;
+        String decodedEmailTemplateTypeId = Util.base64URLDecode(emailTemplateTypeId);
+        for (EmailTemplate emailTemplate: emailTemplates) {
+            if (decodedEmailTemplateTypeId.equalsIgnoreCase(emailTemplate.getTemplateType())) {
+                if (templateTypeFoundForTheFirstTime) {
+                    emailTemplateType.setDisplayName(emailTemplate.getTemplateDisplayName());
+                    emailTemplateType.setId(emailTemplateTypeId);
+                }
+                // Create email template and add to the type
+
+            }
+        }
+        return null;
     }
 
     /**
