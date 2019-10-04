@@ -80,8 +80,8 @@ public class EmailApiServiceImpl implements EmailApiService {
     public Response getEmailTemplateType(String templateTypeId, Integer limit, Integer offset, String sort,
                                          String sortBy) {
 
-        // do some magic!
-        return Response.ok().entity("magic!").build();
+        return Response.ok().entity(emailTemplatesService.
+                getEmailTemplateType(templateTypeId, limit, offset, sort, sortBy)).build();
     }
 
     @Override

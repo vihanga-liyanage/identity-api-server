@@ -29,12 +29,15 @@ public class Constants {
      */
     public enum ErrorMessage {
 
-        ERROR_CODE_ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES("50002",
+        ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES("50002",
                 "Unable to retrieve email template types.",
                 "Server encountered an error while retrieving email template types."),
-        ERROR_CODE_ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPE("50003",
+        ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPE("50003",
                 "Unable to retrieve email template type matching the given .",
-                "Server encountered an error while retrieving email template type.");
+                "Server encountered an error while retrieving email template type."),
+        ERROR_EMAIL_TEMPLATE_TYPE_NOT_FOUND("500010",
+                "Email Template Type does not exists.",
+                "Specified email template type does not exist in the system, hence unable to proceed.");
 
         private final String code;
         private final String message;
