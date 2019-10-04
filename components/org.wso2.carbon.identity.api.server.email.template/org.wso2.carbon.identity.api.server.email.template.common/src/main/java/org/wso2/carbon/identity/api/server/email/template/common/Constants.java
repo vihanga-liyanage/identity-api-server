@@ -22,7 +22,9 @@ package org.wso2.carbon.identity.api.server.email.template.common;
 public class Constants {
 
     public static final String EMAIL_TEMPLATES_ERROR_CODE_PREFIX = "ETM-";
-    public static final String EMAIL_TEMPLATES_API_BASE_PATH = "/email/templates";
+    public static final String EMAIL_TEMPLATES_API_BASE_PATH = "/email";
+    public static final String EMAIL_TEMPLATE_TYPES_PATH = "/template-types";
+    public static final String EMAIL_TEMPLATES_PATH = "/templates";
 
     /**
      * Enum for error messages.

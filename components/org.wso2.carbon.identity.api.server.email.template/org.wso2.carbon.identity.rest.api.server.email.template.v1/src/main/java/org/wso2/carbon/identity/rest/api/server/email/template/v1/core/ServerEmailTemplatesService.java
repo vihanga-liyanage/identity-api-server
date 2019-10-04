@@ -41,6 +41,8 @@ import javax.ws.rs.core.Response;
 import static org.wso2.carbon.identity.api.server.common.Util.base64URLDecode;
 import static org.wso2.carbon.identity.api.server.common.Util.base64URLEncode;
 import static org.wso2.carbon.identity.api.server.email.template.common.Constants.EMAIL_TEMPLATES_API_BASE_PATH;
+import static org.wso2.carbon.identity.api.server.email.template.common.Constants.EMAIL_TEMPLATES_PATH;
+import static org.wso2.carbon.identity.api.server.email.template.common.Constants.EMAIL_TEMPLATE_TYPES_PATH;
 
 /**
  * Call internal osgi services to perform email templates related operations.
@@ -73,36 +75,6 @@ public class ServerEmailTemplatesService {
     }
 
     /**
-     * Create a list EmailTemplateTypeWithoutTemplates objects by reading EmailTemplate list.
-     *
-     * @param emailTemplates List of EmailTemplate objects.
-     * @return List of EmailTemplateTypeWithoutTemplates objects.
-     */
-    private List<EmailTemplateTypeWithoutTemplates> buildEmailTemplateTypeWithoutTemplatesList(
-            List<EmailTemplate> emailTemplates) {
-
-        Map<String, EmailTemplateTypeWithoutTemplates> templateTypeMap = new HashMap<>();
-        for (EmailTemplate emailTemplate : emailTemplates) {
-            if (!templateTypeMap.containsKey(emailTemplate.getTemplateType())) {
-
-                EmailTemplateTypeWithoutTemplates emailTemplateType = new EmailTemplateTypeWithoutTemplates();
-                // Set display name.
-                emailTemplateType.setDisplayName(emailTemplate.getTemplateDisplayName());
-                // Set id.
-                String templateTypeId = base64URLEncode(emailTemplate.getTemplateType());
-                emailTemplateType.setId(templateTypeId);
-                // Set location.
-                String location = EMAIL_TEMPLATES_API_BASE_PATH + PATH_SEPARATOR + templateTypeId;
-                emailTemplateType.setLocation(ContextLoader.buildURIForBody(location).toString());
-
-                templateTypeMap.put(emailTemplate.getTemplateType(), emailTemplateType);
-            }
-        }
-
-        return new ArrayList<>(templateTypeMap.values());
-    }
-
-    /**
      * Return a specific email template type identified by the email template type id.
      *
      * @param templateTypeId Email template type id.
@@ -122,6 +94,95 @@ public class ServerEmailTemplatesService {
         } catch (I18nEmailMgtException e) {
             throw handleI18nEmailMgtException(e, Constants.ErrorMessage.ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES);
         }
+    }
+
+    /**
+     * Return a list of locations of all available templates in a specific email template type.
+     *
+     * @param templateTypeId Email template type id.
+     * @param limit          Limit the number of email template types in the response. **Not supported at the moment**
+     * @param offset         Offset to be used with the limit parameter. **Not supported at the moment**
+     * @param sort           Sort the response in ascending order or descending order. **Not supported at the moment**
+     * @param sortBy         Element to sort the responses. **Not supported at the moment**
+     * @return List of templates in the template type identified by the given id, 404 if not found.
+     */
+    public List<String> getTemplatesListOfEmailTemplateType(String templateTypeId, Integer limit, Integer offset,
+                                                    String sort, String sortBy) {
+
+        try {
+            List<EmailTemplate> legacyEmailTemplates = EmailTemplatesServiceHolder.getEmailTemplateManager().
+                    getAllEmailTemplates(ContextLoader.getTenantDomainFromContext());
+            return getTemplatesListOfEmailTemplateType(legacyEmailTemplates, templateTypeId);
+        } catch (I18nEmailMgtException e) {
+            throw handleI18nEmailMgtException(e, Constants.ErrorMessage.ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES);
+        }
+    }
+
+    /**
+     * Iterate through a given legacy email templates list, extract a list of templates in it and build a list of
+     * locations of those templates.
+     *
+     * @param legacyEmailTemplates List of legacy email templates.
+     * @param templateTypeId       Email template type to be extracted.
+     * @return Extracted locations list in the template type, 404 if not found.
+     */
+    private  List<String> getTemplatesListOfEmailTemplateType(List<EmailTemplate> legacyEmailTemplates,
+                                                         String templateTypeId) {
+
+        List<String> templates = new ArrayList<>();
+        String decodedTemplateTypeId = base64URLDecode(templateTypeId);
+        for (EmailTemplate legacyTemplate : legacyEmailTemplates) {
+            if (decodedTemplateTypeId.equals(legacyTemplate.getTemplateType())) {
+                String templateLocation = getTemplateLocation(templateTypeId, legacyTemplate.getLocale());
+                templates.add(templateLocation);
+            }
+        }
+        if (templates.isEmpty()) {
+            throw handleError(Response.Status.NOT_FOUND, Constants.ErrorMessage.ERROR_EMAIL_TEMPLATE_TYPE_NOT_FOUND);
+        }
+        return templates;
+    }
+
+    /**
+     * Create a list EmailTemplateTypeWithoutTemplates objects by reading a legacy EmailTemplate list.
+     *
+     * @param legacyEmailTemplates List of EmailTemplate objects.
+     * @return List of EmailTemplateTypeWithoutTemplates objects.
+     */
+    private List<EmailTemplateTypeWithoutTemplates> buildEmailTemplateTypeWithoutTemplatesList(
+            List<EmailTemplate> legacyEmailTemplates) {
+
+        Map<String, EmailTemplateTypeWithoutTemplates> templateTypeMap = new HashMap<>();
+        for (EmailTemplate emailTemplate : legacyEmailTemplates) {
+            if (!templateTypeMap.containsKey(emailTemplate.getTemplateType())) {
+
+                EmailTemplateTypeWithoutTemplates emailTemplateType = new EmailTemplateTypeWithoutTemplates();
+                // Set display name.
+                emailTemplateType.setDisplayName(emailTemplate.getTemplateDisplayName());
+                // Set id.
+                String templateTypeId = base64URLEncode(emailTemplate.getTemplateType());
+                emailTemplateType.setId(templateTypeId);
+                // Set location.
+                emailTemplateType.setLocation(getTemplateTypeLocation(templateTypeId));
+
+                templateTypeMap.put(emailTemplate.getTemplateType(), emailTemplateType);
+            }
+        }
+
+        return new ArrayList<>(templateTypeMap.values());
+    }
+
+    private String getTemplateTypeLocation(String templateTypeId) {
+
+        String location = EMAIL_TEMPLATES_API_BASE_PATH + EMAIL_TEMPLATE_TYPES_PATH + PATH_SEPARATOR +
+                templateTypeId;
+        return ContextLoader.buildURIForBody(location).toString();
+    }
+
+    private String getTemplateLocation(String templateTypeId, String templateId) {
+
+        String templateLocation = getTemplateTypeLocation(templateTypeId);
+        return templateLocation + EMAIL_TEMPLATES_PATH + PATH_SEPARATOR + templateId;
     }
 
     /**
