@@ -51,7 +51,6 @@ public class ServerEmailTemplatesService {
 
     private static final Log log = LogFactory.getLog(ServerEmailTemplatesService.class);
     private static final String PATH_SEPARATOR = "/";
-    private static final String LOCALE_CODE_DELIMITER = "_";
 
     /**
      * Return all email template types in the system with limited information of the templates inside.
@@ -92,7 +91,7 @@ public class ServerEmailTemplatesService {
                     getAllEmailTemplates(ContextLoader.getTenantDomainFromContext());
             return getMatchingEmailTemplateType(legacyEmailTemplates, templateTypeId);
         } catch (I18nEmailMgtException e) {
-            throw handleI18nEmailMgtException(e, Constants.ErrorMessage.ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES);
+            throw handleI18nEmailMgtException(e, Constants.ErrorMessage.ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPE);
         }
     }
 
@@ -107,14 +106,43 @@ public class ServerEmailTemplatesService {
      * @return List of templates in the template type identified by the given id, 404 if not found.
      */
     public List<String> getTemplatesListOfEmailTemplateType(String templateTypeId, Integer limit, Integer offset,
-                                                    String sort, String sortBy) {
+                                                            String sort, String sortBy) {
 
         try {
             List<EmailTemplate> legacyEmailTemplates = EmailTemplatesServiceHolder.getEmailTemplateManager().
                     getAllEmailTemplates(ContextLoader.getTenantDomainFromContext());
             return getTemplatesListOfEmailTemplateType(legacyEmailTemplates, templateTypeId);
         } catch (I18nEmailMgtException e) {
-            throw handleI18nEmailMgtException(e, Constants.ErrorMessage.ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES);
+            throw handleI18nEmailMgtException(e, Constants.ErrorMessage.ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPE);
+        }
+    }
+
+    /**
+     * Return a single email template that matches to the given template-type-id and the template-id.
+     *
+     * @param templateTypeId Email template type id.
+     * @param templateId     Email template id.
+     * @param limit          Limit the number of email template types in the response. **Not supported at the moment**
+     * @param offset         Offset to be used with the limit parameter. **Not supported at the moment**
+     * @param sort           Sort the response in ascending order or descending order. **Not supported at the moment**
+     * @param sortBy         Element to sort the responses. **Not supported at the moment**
+     * @return Email template identified by the given template-type-id and the template-id, 404 if not found.
+     */
+    public EmailTemplateWithID getEmailTemplate(String templateTypeId, String templateId, Integer limit,
+                                                Integer offset, String sort, String sortBy) {
+
+        try {
+            String decodedTemplateTypeId = base64DecodeTemplateTypeId(templateTypeId);
+            EmailTemplate legacyEmailTemplate = EmailTemplatesServiceHolder.getEmailTemplateManager().
+                    getEmailTemplate(decodedTemplateTypeId, templateId, ContextLoader.getTenantDomainFromContext());
+            // EmailTemplateManager sends the default template if no matching template found. We need to filter in
+            // the service layer.
+            if (!legacyEmailTemplate.getLocale().equals(templateId)) {
+                throw handleError(Constants.ErrorMessage.ERROR_EMAIL_TEMPLATE_NOT_FOUND);
+            }
+            return buildEmailTemplateWithID(legacyEmailTemplate);
+        } catch (I18nEmailMgtException e) {
+            throw handleI18nEmailMgtException(e, Constants.ErrorMessage.ERROR_RETRIEVING_EMAIL_TEMPLATE);
         }
     }
 
@@ -126,11 +154,11 @@ public class ServerEmailTemplatesService {
      * @param templateTypeId       Email template type to be extracted.
      * @return Extracted locations list in the template type, 404 if not found.
      */
-    private  List<String> getTemplatesListOfEmailTemplateType(List<EmailTemplate> legacyEmailTemplates,
-                                                         String templateTypeId) {
+    private List<String> getTemplatesListOfEmailTemplateType(List<EmailTemplate> legacyEmailTemplates,
+                                                             String templateTypeId) {
 
         List<String> templates = new ArrayList<>();
-        String decodedTemplateTypeId = base64URLDecode(templateTypeId);
+        String decodedTemplateTypeId = base64DecodeTemplateTypeId(templateTypeId);
         for (EmailTemplate legacyTemplate : legacyEmailTemplates) {
             if (decodedTemplateTypeId.equals(legacyTemplate.getTemplateType())) {
                 String templateLocation = getTemplateLocation(templateTypeId, legacyTemplate.getLocale());
@@ -138,7 +166,7 @@ public class ServerEmailTemplatesService {
             }
         }
         if (templates.isEmpty()) {
-            throw handleError(Response.Status.NOT_FOUND, Constants.ErrorMessage.ERROR_EMAIL_TEMPLATE_TYPE_NOT_FOUND);
+            throw handleError(Constants.ErrorMessage.ERROR_EMAIL_TEMPLATE_TYPE_NOT_FOUND);
         }
         return templates;
     }
@@ -174,8 +202,7 @@ public class ServerEmailTemplatesService {
 
     private String getTemplateTypeLocation(String templateTypeId) {
 
-        String location = EMAIL_TEMPLATES_API_BASE_PATH + EMAIL_TEMPLATE_TYPES_PATH + PATH_SEPARATOR +
-                templateTypeId;
+        String location = EMAIL_TEMPLATES_API_BASE_PATH + EMAIL_TEMPLATE_TYPES_PATH + PATH_SEPARATOR + templateTypeId;
         return ContextLoader.buildURIForBody(location).toString();
     }
 
@@ -197,7 +224,7 @@ public class ServerEmailTemplatesService {
                                                                  String templateTypeId) {
 
         EmailTemplateTypeWithID emailTemplateType = new EmailTemplateTypeWithID();
-        String decodedTemplateTypeId = base64URLDecode(templateTypeId);
+        String decodedTemplateTypeId = base64DecodeTemplateTypeId(templateTypeId);
         boolean isFirst = true;
         for (EmailTemplate legacyTemplate : legacyEmailTemplates) {
             if (decodedTemplateTypeId.equals(legacyTemplate.getTemplateType())) {
@@ -211,7 +238,7 @@ public class ServerEmailTemplatesService {
             }
         }
         if (StringUtils.isBlank(emailTemplateType.getId())) {
-            throw handleError(Response.Status.NOT_FOUND, Constants.ErrorMessage.ERROR_EMAIL_TEMPLATE_TYPE_NOT_FOUND);
+            throw handleError(Constants.ErrorMessage.ERROR_EMAIL_TEMPLATE_TYPE_NOT_FOUND);
         }
         return emailTemplateType;
     }
@@ -231,6 +258,21 @@ public class ServerEmailTemplatesService {
     }
 
     /**
+     * Base64 decode a given encoded template type id, return appropriate error if failed.
+     *
+     * @param templateTypeId Encoded template type id.
+     * @return Decoded template type id if possible, API Error otherwise.
+     */
+    private String base64DecodeTemplateTypeId(String templateTypeId) {
+
+        try {
+            return base64URLDecode(templateTypeId);
+        } catch (Throwable e) {
+            throw handleError(Constants.ErrorMessage.ERROR_INVALID_TEMPLATE_TYPE_ID);
+        }
+    }
+
+    /**
      * Handle I18nEmailMgtException, i.e. extract error description from the exception and set to the
      * API Error Response, along with an status code to be sent in the response.
      *
@@ -245,17 +287,25 @@ public class ServerEmailTemplatesService {
         Response.Status status;
 
         if (exception != null) {
-            errorResponse.setDescription(exception.getMessage());
-            status = Response.Status.BAD_REQUEST;
+            if (StringUtils.isNotBlank(exception.getErrorCode()) &&
+                    Constants.getMappedErrorMessage(exception.getErrorCode()) != null) {
+                Constants.ErrorMessage errorMessage = Constants.getMappedErrorMessage(exception.getErrorCode());
+                errorResponse.setMessage(errorMessage.getMessage());
+                errorResponse.setDescription(errorMessage.getDescription());
+                status = errorMessage.getHttpStatus();
+            } else {
+                errorResponse.setDescription(exception.getMessage());
+                status = Response.Status.INTERNAL_SERVER_ERROR;
+            }
         } else {
             status = Response.Status.INTERNAL_SERVER_ERROR;
         }
         return new APIError(status, errorResponse);
     }
 
-    private APIError handleError(Response.Status status, Constants.ErrorMessage error) {
+    private APIError handleError(Constants.ErrorMessage error) {
 
-        return new APIError(status, getErrorBuilder(error).build());
+        return new APIError(error.getHttpStatus(), getErrorBuilder(error).build());
     }
 
     private ErrorResponse.Builder getErrorBuilder(Constants.ErrorMessage errorMsg) {
