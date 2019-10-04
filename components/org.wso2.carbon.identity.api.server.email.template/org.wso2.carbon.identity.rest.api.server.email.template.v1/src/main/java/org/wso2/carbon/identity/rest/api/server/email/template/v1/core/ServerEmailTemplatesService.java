@@ -23,21 +23,15 @@ import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.email.mgt.exceptions.I18nEmailMgtException;
 import org.wso2.carbon.email.mgt.model.EmailTemplate;
 import org.wso2.carbon.identity.api.server.common.ContextLoader;
-import org.wso2.carbon.identity.api.server.common.Util;
 import org.wso2.carbon.identity.api.server.common.error.APIError;
 import org.wso2.carbon.identity.api.server.common.error.ErrorResponse;
 import org.wso2.carbon.identity.api.server.email.template.common.Constants;
 import org.wso2.carbon.identity.api.server.email.template.common.EmailTemplatesServiceHolder;
-import org.wso2.carbon.identity.rest.api.server.email.template.v1.dto.CompleteEmailTemplateTypeDTO;
-import org.wso2.carbon.identity.rest.api.server.email.template.v1.dto.CompleteEmailTemplateTypeResponseDTO;
-import org.wso2.carbon.identity.rest.api.server.email.template.v1.dto.LocaleDTO;
-import org.wso2.carbon.identity.rest.api.server.email.template.v1.dto.SimpleEmailTemplateDTO;
-import org.wso2.carbon.identity.rest.api.server.email.template.v1.dto.SimpleEmailTemplateTypeDTO;
+import org.wso2.carbon.identity.rest.api.server.email.template.v1.model.EmailTemplateTypeWithoutTemplates;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import javax.ws.rs.core.Response;
 
@@ -62,122 +56,115 @@ public class ServerEmailTemplatesService {
      * @param sortBy Element to sort the responses. **Not supported at the moment**
      * @return A list of email template types.
      */
-    public List<SimpleEmailTemplateTypeDTO> getAllEmailTemplateTypes(Integer limit, Integer offset, String sort,
-                                                                     String sortBy) {
+    public List<EmailTemplateTypeWithoutTemplates> getAllEmailTemplateTypes(Integer limit, Integer offset, String sort,
+                                                                            String sortBy) {
 
         try {
             List<EmailTemplate> emailTemplates = EmailTemplatesServiceHolder.getEmailTemplateManager().
                     getAllEmailTemplates(ContextLoader.getTenantDomainFromContext());
-            return buildSimpleEmailTemplateTypeDTOList(emailTemplates);
+            return buildEmailTemplateTypeWithoutTemplatesList(emailTemplates);
         } catch (I18nEmailMgtException e) {
             throw handleI18nEmailMgtException(e,
                     Constants.ErrorMessage.ERROR_CODE_ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES);
         }
-    }
-
-    public CompleteEmailTemplateTypeResponseDTO getEmailTemplateType(String emailTemplateTypeId, Integer limit,
-                                                             Integer offset, String sort, String sortBy) {
-
-        try {
-            List<EmailTemplate> emailTemplates = EmailTemplatesServiceHolder.getEmailTemplateManager().
-                    getAllEmailTemplates(ContextLoader.getTenantDomainFromContext());
-            return getMatchingEmailTemplateType(emailTemplates, emailTemplateTypeId);
-        } catch (I18nEmailMgtException e) {
-            throw handleI18nEmailMgtException(e,
-                    Constants.ErrorMessage.ERROR_CODE_ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES);
-        }
-    }
-
-    private CompleteEmailTemplateTypeResponseDTO getMatchingEmailTemplateType(List<EmailTemplate> emailTemplates,
-                                                                      String emailTemplateTypeId) {
-
-        CompleteEmailTemplateTypeResponseDTO emailTemplateType = new CompleteEmailTemplateTypeResponseDTO();
-        boolean templateTypeFoundForTheFirstTime = true;
-        String decodedEmailTemplateTypeId = Util.base64URLDecode(emailTemplateTypeId);
-        for (EmailTemplate emailTemplate: emailTemplates) {
-            if (decodedEmailTemplateTypeId.equalsIgnoreCase(emailTemplate.getTemplateType())) {
-                if (templateTypeFoundForTheFirstTime) {
-                    emailTemplateType.setDisplayName(emailTemplate.getTemplateDisplayName());
-                    emailTemplateType.setId(emailTemplateTypeId);
-                }
-                // Create email template and add to the type
-
-            }
-        }
-        return null;
     }
 
     /**
-     * Create a list SimpleEmailTemplateTypeDTO objects by reading EmailTemplate list.
+     * Create a list EmailTemplateTypeWithoutTemplates objects by reading EmailTemplate list.
      *
      * @param emailTemplates List of EmailTemplate objects.
-     * @return List of SimpleEmailTemplateTypeDTO objects.
+     * @return List of EmailTemplateTypeWithoutTemplates objects.
      */
-    private List<SimpleEmailTemplateTypeDTO> buildSimpleEmailTemplateTypeDTOList(List<EmailTemplate> emailTemplates) {
+    private List<EmailTemplateTypeWithoutTemplates> buildEmailTemplateTypeWithoutTemplatesList(
+            List<EmailTemplate> emailTemplates) {
 
-        Map<String, SimpleEmailTemplateTypeDTO> templateTypeMap = new HashMap<>();
+        Map<String, EmailTemplateTypeWithoutTemplates> templateTypeMap = new HashMap<>();
         for (EmailTemplate emailTemplate : emailTemplates) {
-            if (templateTypeMap.containsKey(emailTemplate.getTemplateType())) {
+            if (!templateTypeMap.containsKey(emailTemplate.getTemplateType())) {
 
-                SimpleEmailTemplateDTO simpleEmailTemplateDTO = getSimpleEmailTemplateDTO(emailTemplate);
-
-                templateTypeMap.get(emailTemplate.getTemplateType()).getItems().add(simpleEmailTemplateDTO);
-            } else {
-                SimpleEmailTemplateTypeDTO simpleEmailTemplateTypeDTO = new SimpleEmailTemplateTypeDTO();
-                simpleEmailTemplateTypeDTO.setDisplayName(emailTemplate.getTemplateDisplayName());
+                EmailTemplateTypeWithoutTemplates emailTemplateType = new EmailTemplateTypeWithoutTemplates();
+                // Set display name.
+                emailTemplateType.setDisplayName(emailTemplate.getTemplateDisplayName());
+                // Set id.
                 String templateTypeId = base64URLEncode(emailTemplate.getTemplateType());
-                simpleEmailTemplateTypeDTO.setId(templateTypeId);
-
+                emailTemplateType.setId(templateTypeId);
+                // Set location.
                 String location = EMAIL_TEMPLATES_API_BASE_PATH + PATH_SEPARATOR + templateTypeId;
-                simpleEmailTemplateTypeDTO.setLocation(ContextLoader.buildURIForBody(location).toString());
+                emailTemplateType.setLocation(ContextLoader.buildURIForBody(location).toString());
 
-                SimpleEmailTemplateDTO simpleEmailTemplateDTO = getSimpleEmailTemplateDTO(emailTemplate);
-                List<SimpleEmailTemplateDTO> emailTemplatesList = new ArrayList<>();
-
-                emailTemplatesList.add(simpleEmailTemplateDTO);
-                simpleEmailTemplateTypeDTO.setItems(emailTemplatesList);
-
-                templateTypeMap.put(emailTemplate.getTemplateType(), simpleEmailTemplateTypeDTO);
+                templateTypeMap.put(emailTemplate.getTemplateType(), emailTemplateType);
             }
         }
 
         return new ArrayList<>(templateTypeMap.values());
     }
 
-    /**
-     * Create a SimpleEmailTemplateDTO object by reading EmailTemplate object.
-     *
-     * @param emailTemplate Original EmailTemplate object.
-     * @return Created SimpleEmailTemplateDTO object.
-     */
-    private SimpleEmailTemplateDTO getSimpleEmailTemplateDTO(EmailTemplate emailTemplate) {
+//    public CompleteEmailTemplateTypeResponseDTO getEmailTemplateType(String emailTemplateTypeId, Integer limit,
+//                                                             Integer offset, String sort, String sortBy) {
+//
+//        try {
+//            List<EmailTemplate> emailTemplates = EmailTemplatesServiceHolder.getEmailTemplateManager().
+//                    getAllEmailTemplates(ContextLoader.getTenantDomainFromContext());
+//            return getMatchingEmailTemplateType(emailTemplates, emailTemplateTypeId);
+//        } catch (I18nEmailMgtException e) {
+//            throw handleI18nEmailMgtException(e,
+//                    Constants.ErrorMessage.ERROR_CODE_ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES);
+//        }
+//    }
+//
+//    private CompleteEmailTemplateTypeResponseDTO getMatchingEmailTemplateType(List<EmailTemplate> emailTemplates,
+//                                                                      String emailTemplateTypeId) {
+//
+//        CompleteEmailTemplateTypeResponseDTO emailTemplateType = new CompleteEmailTemplateTypeResponseDTO();
+//        boolean templateTypeFoundForTheFirstTime = true;
+//        String decodedEmailTemplateTypeId = Util.base64URLDecode(emailTemplateTypeId);
+//        for (EmailTemplate emailTemplate: emailTemplates) {
+//            if (decodedEmailTemplateTypeId.equalsIgnoreCase(emailTemplate.getTemplateType())) {
+//                if (templateTypeFoundForTheFirstTime) {
+//                    emailTemplateType.setDisplayName(emailTemplate.getTemplateDisplayName());
+//                    emailTemplateType.setId(emailTemplateTypeId);
+//                }
+//                // Create email template and add to the type
+//
+//            }
+//        }
+//        return null;
+//    }
 
-        SimpleEmailTemplateDTO simpleEmailTemplateDTO = new SimpleEmailTemplateDTO();
-        simpleEmailTemplateDTO.setContentType(emailTemplate.getEmailContentType());
-
-        LocaleDTO localeDTO = getLocaleDTO(emailTemplate.getLocale());
-        simpleEmailTemplateDTO.setLocale(localeDTO);
-        return simpleEmailTemplateDTO;
-    }
-
-    /**
-     * Create a LocaleDTO using a given locale code. This local code must be supported by {@link Locale}
-     * to obtain a proper display name.
-     *
-     * @param localeCode Locale code with language and country. Ex: en_US.
-     * @return Created LocaleDTO with locale code and display name.
-     */
-    private LocaleDTO getLocaleDTO(String localeCode) {
-
-        LocaleDTO localeDTO = new LocaleDTO();
-        localeDTO.setCode(localeCode);
-
-        String[] localeElements = localeCode.split(LOCALE_CODE_DELIMITER);
-        Locale locale = new Locale(localeElements[0], localeElements[1]);
-        localeDTO.setDisplayName(locale.getDisplayName());
-
-        return localeDTO;
-    }
+//    /**
+//     * Create a SimpleEmailTemplateDTO object by reading EmailTemplate object.
+//     *
+//     * @param emailTemplate Original EmailTemplate object.
+//     * @return Created SimpleEmailTemplateDTO object.
+//     */
+//    private EmailTemplateTypeWithoutTemplates getEmailTemplateTypeWithoutTemplates(EmailTemplate emailTemplate) {
+//
+//        EmailTemplateTypeWithoutTemplates emailTemplateType = new EmailTemplateTypeWithoutTemplates();
+//        emailTemplateType.setContentType(emailTemplate.getEmailContentType());
+//
+//        LocaleDTO localeDTO = getLocaleDTO(emailTemplate.getLocale());
+//        emailTemplateType.setLocale(localeDTO);
+//        return emailTemplateType;
+//    }
+//
+//    /**
+//     * Create a LocaleDTO using a given locale code. This local code must be supported by {@link Locale}
+//     * to obtain a proper display name.
+//     *
+//     * @param localeCode Locale code with language and country. Ex: en_US.
+//     * @return Created LocaleDTO with locale code and display name.
+//     */
+//    private LocaleDTO getLocaleDTO(String localeCode) {
+//
+//        LocaleDTO localeDTO = new LocaleDTO();
+//        localeDTO.setCode(localeCode);
+//
+//        String[] localeElements = localeCode.split(LOCALE_CODE_DELIMITER);
+//        Locale locale = new Locale(localeElements[0], localeElements[1]);
+//        localeDTO.setDisplayName(locale.getDisplayName());
+//
+//        return localeDTO;
+//    }
 
     /**
      * Handle I18nEmailMgtException, i.e. extract error description from the exception and set to the
