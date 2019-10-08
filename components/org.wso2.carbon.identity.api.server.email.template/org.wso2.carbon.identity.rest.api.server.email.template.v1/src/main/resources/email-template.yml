@@ -526,13 +526,14 @@ components:
     EmailTemplateWithID:
       allOf:
         - $ref: '#/components/schemas/EmailTemplate'
-        - properties:
+        - required:
+            - id
+          properties:
             id:
               type: string
               example: en_US
               description: >-
-                Locale code in which the template should be added. This locale
-                should be a one supported by Java.util.Locale class.
+                Unique ID of the email template. This id represents the locale of the email template.
 
     EmailTemplate:
       type: object

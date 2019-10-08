@@ -34,7 +34,7 @@ public class EmailTemplateWithID extends EmailTemplate {
     private String id;
 
     /**
-    * Locale code in which the template should be added. This locale should be a one supported by Java.util.Locale class.
+    * Unique ID of the email template. This id represents the locale of the email template.
     **/
     public EmailTemplateWithID id(String id) {
 
@@ -42,9 +42,11 @@ public class EmailTemplateWithID extends EmailTemplate {
         return this;
     }
     
-    @ApiModelProperty(example = "en_US", value = "Locale code in which the template should be added. This locale should be a one supported by Java.util.Locale class.")
+    @ApiModelProperty(example = "en_US", required = true, value = "Unique ID of the email template. This id represents the locale of the email template.")
     @JsonProperty("id")
     @Valid
+    @NotNull(message = "Property id cannot be null.")
+
     public String getId() {
         return id;
     }
