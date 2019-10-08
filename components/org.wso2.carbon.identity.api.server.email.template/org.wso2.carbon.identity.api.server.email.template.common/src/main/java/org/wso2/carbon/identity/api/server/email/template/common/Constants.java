@@ -39,6 +39,7 @@ public class Constants {
      */
     public enum ErrorMessage {
 
+        // TODO: 2019-10-07 Double check error codes
         ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES("50002", Status.INTERNAL_SERVER_ERROR,
                 "Unable to retrieve email template types.",
                 "Server encountered an error while retrieving email template types."),
@@ -51,14 +52,18 @@ public class Constants {
                 "Server encountered an error while retrieving the email template " +
                         "identified by the given template-type-id and the template-id"),
         ERROR_INVALID_TEMPLATE_TYPE_ID("50005", Status.BAD_REQUEST,
-                "Provided email template type is invalid.",
+                "Provided email template-type-id is invalid.",
                 "Server encountered an error while processing the given template-type-id."),
         ERROR_EMAIL_TEMPLATE_TYPE_NOT_FOUND("500010", Status.NOT_FOUND,
                 "Email Template Type does not exists.",
                 "Specified email template type does not exist in the system, hence unable to proceed."),
         ERROR_EMAIL_TEMPLATE_NOT_FOUND("500011", Status.NOT_FOUND,
                 "Email Template does not exists.",
-                "Specified email template does not exist in the system, hence unable to proceed.");
+                "Specified email template does not exist in the system, hence unable to proceed."),
+        ERROR_EMAIL_TEMPLATE_ALREADY_EXISTS("500012", Status.CONFLICT,
+                "Email Template already exists in the system.",
+                "An email template for the provided template id already exists " +
+                        "in the system, hence unable to proceed.");
 
         private final String message;
         private final Status httpStatus;

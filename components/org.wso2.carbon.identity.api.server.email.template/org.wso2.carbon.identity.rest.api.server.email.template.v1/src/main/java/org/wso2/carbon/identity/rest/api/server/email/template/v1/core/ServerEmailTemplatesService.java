@@ -23,6 +23,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.email.mgt.exceptions.I18nEmailMgtException;
 import org.wso2.carbon.email.mgt.model.EmailTemplate;
+import org.wso2.carbon.email.mgt.util.I18nEmailUtil;
 import org.wso2.carbon.identity.api.server.common.ContextLoader;
 import org.wso2.carbon.identity.api.server.common.error.APIError;
 import org.wso2.carbon.identity.api.server.common.error.ErrorResponse;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import javax.ws.rs.core.Response;
 
+import static org.wso2.carbon.identity.api.server.common.ContextLoader.getTenantDomainFromContext;
 import static org.wso2.carbon.identity.api.server.common.Util.base64URLDecode;
 import static org.wso2.carbon.identity.api.server.common.Util.base64URLEncode;
 import static org.wso2.carbon.identity.api.server.email.template.common.Constants.EMAIL_TEMPLATES_API_BASE_PATH;
@@ -46,6 +48,8 @@ import static org.wso2.carbon.identity.api.server.email.template.common.Constant
 
 /**
  * Call internal osgi services to perform email templates related operations.
+ *
+ * Note: email-template-type-id is created by base64URL encoding the template display name.
  */
 public class ServerEmailTemplatesService {
 
@@ -66,7 +70,7 @@ public class ServerEmailTemplatesService {
 
         try {
             List<EmailTemplate> legacyEmailTemplates = EmailTemplatesServiceHolder.getEmailTemplateManager().
-                    getAllEmailTemplates(ContextLoader.getTenantDomainFromContext());
+                    getAllEmailTemplates(getTenantDomainFromContext());
             return buildEmailTemplateTypeWithoutTemplatesList(legacyEmailTemplates);
         } catch (I18nEmailMgtException e) {
             throw handleI18nEmailMgtException(e, Constants.ErrorMessage.ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPES);
@@ -88,7 +92,7 @@ public class ServerEmailTemplatesService {
 
         try {
             List<EmailTemplate> legacyEmailTemplates = EmailTemplatesServiceHolder.getEmailTemplateManager().
-                    getAllEmailTemplates(ContextLoader.getTenantDomainFromContext());
+                    getAllEmailTemplates(getTenantDomainFromContext());
             return getMatchingEmailTemplateType(legacyEmailTemplates, templateTypeId);
         } catch (I18nEmailMgtException e) {
             throw handleI18nEmailMgtException(e, Constants.ErrorMessage.ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPE);
@@ -110,7 +114,7 @@ public class ServerEmailTemplatesService {
 
         try {
             List<EmailTemplate> legacyEmailTemplates = EmailTemplatesServiceHolder.getEmailTemplateManager().
-                    getAllEmailTemplates(ContextLoader.getTenantDomainFromContext());
+                    getAllEmailTemplates(getTenantDomainFromContext());
             return getTemplatesListOfEmailTemplateType(legacyEmailTemplates, templateTypeId);
         } catch (I18nEmailMgtException e) {
             throw handleI18nEmailMgtException(e, Constants.ErrorMessage.ERROR_RETRIEVING_EMAIL_TEMPLATE_TYPE);
@@ -132,12 +136,9 @@ public class ServerEmailTemplatesService {
                                                 Integer offset, String sort, String sortBy) {
 
         try {
-            String decodedTemplateTypeId = base64DecodeTemplateTypeId(templateTypeId);
-            EmailTemplate legacyEmailTemplate = EmailTemplatesServiceHolder.getEmailTemplateManager().
-                    getEmailTemplate(decodedTemplateTypeId, templateId, ContextLoader.getTenantDomainFromContext());
-            // EmailTemplateManager sends the default template if no matching template found. We need to filter in
-            // the service layer.
-            if (!legacyEmailTemplate.getLocale().equals(templateId)) {
+            String templateDisplayName = base64DecodeTemplateTypeId(templateTypeId);
+            EmailTemplate legacyEmailTemplate = getMatchingLegacyEmailTemplate(templateDisplayName, templateId);
+            if (legacyEmailTemplate == null) {
                 throw handleError(Constants.ErrorMessage.ERROR_EMAIL_TEMPLATE_NOT_FOUND);
             }
             return buildEmailTemplateWithID(legacyEmailTemplate);
@@ -158,9 +159,9 @@ public class ServerEmailTemplatesService {
                                                              String templateTypeId) {
 
         List<String> templates = new ArrayList<>();
-        String decodedTemplateTypeId = base64DecodeTemplateTypeId(templateTypeId);
+        String templateDisplayName = base64DecodeTemplateTypeId(templateTypeId);
         for (EmailTemplate legacyTemplate : legacyEmailTemplates) {
-            if (decodedTemplateTypeId.equals(legacyTemplate.getTemplateType())) {
+            if (templateDisplayName.equals(legacyTemplate.getTemplateDisplayName())) {
                 String templateLocation = getTemplateLocation(templateTypeId, legacyTemplate.getLocale());
                 templates.add(templateLocation);
             }
@@ -169,6 +170,20 @@ public class ServerEmailTemplatesService {
             throw handleError(Constants.ErrorMessage.ERROR_EMAIL_TEMPLATE_TYPE_NOT_FOUND);
         }
         return templates;
+    }
+
+    private EmailTemplate getMatchingLegacyEmailTemplate(String templateDisplayName, String templateId)
+            throws I18nEmailMgtException {
+
+        EmailTemplate legacyEmailTemplate = EmailTemplatesServiceHolder.getEmailTemplateManager().
+                getEmailTemplate(templateDisplayName, templateId, getTenantDomainFromContext());
+        // EmailTemplateManager sends the default template if no matching template found. We need to filter in
+        // the service layer.
+        if (!legacyEmailTemplate.getLocale().equals(templateId)) {
+            return null;
+        } else {
+            return legacyEmailTemplate;
+        }
     }
 
     /**
@@ -188,7 +203,7 @@ public class ServerEmailTemplatesService {
                 // Set display name.
                 emailTemplateType.setDisplayName(emailTemplate.getTemplateDisplayName());
                 // Set id.
-                String templateTypeId = base64URLEncode(emailTemplate.getTemplateType());
+                String templateTypeId = base64URLEncode(emailTemplate.getTemplateDisplayName());
                 emailTemplateType.setId(templateTypeId);
                 // Set location.
                 emailTemplateType.setLocation(getTemplateTypeLocation(templateTypeId));
@@ -213,7 +228,7 @@ public class ServerEmailTemplatesService {
     }
 
     /**
-     * Iterate through a given legacy email templates list and extract a given singe email template type with all
+     * Iterate through a given legacy email templates list and extract a given single email template type with all
      * of it's templates.
      *
      * @param legacyEmailTemplates List of legacy email templates.
@@ -227,7 +242,7 @@ public class ServerEmailTemplatesService {
         String decodedTemplateTypeId = base64DecodeTemplateTypeId(templateTypeId);
         boolean isFirst = true;
         for (EmailTemplate legacyTemplate : legacyEmailTemplates) {
-            if (decodedTemplateTypeId.equals(legacyTemplate.getTemplateType())) {
+            if (decodedTemplateTypeId.equals(legacyTemplate.getTemplateDisplayName())) {
                 if (isFirst) {
                     // Template type details should only be set once.
                     emailTemplateType.setDisplayName(legacyTemplate.getTemplateDisplayName());

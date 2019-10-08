@@ -36,8 +36,8 @@ public class EmailApiServiceImpl implements EmailApiService {
     @Override
     public Response addEmailTemplate(String templateTypeId, EmailTemplateWithID emailTemplateWithID) {
 
-        // do some magic!
-        return Response.ok().entity("magic!").build();
+        return Response.ok().entity(emailTemplatesService.addEmailTemplate(templateTypeId, emailTemplateWithID)).
+                build();
     }
 
     @Override
